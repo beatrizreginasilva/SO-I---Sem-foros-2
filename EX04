@@ -1,0 +1,114 @@
+package SOI12;
+
+import java.util.*;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+public class SOI12 {
+
+    private static final Semaphore pista = new Semaphore(5);
+    private static final Map<String, Lock> escuderiaLocks = new HashMap<>();
+    private static final List<Piloto> gridDeLargada = new ArrayList<>();
+
+    static class Piloto extends Thread {
+        private final String nome;
+        private final String escuderia;
+        private double melhorVolta = Double.MAX_VALUE; // Armazena a melhor volta do piloto
+        private final Random random = new Random();
+
+        public Piloto(String nome, String escuderia) {
+            this.nome = nome;
+            this.escuderia = escuderia;
+        }
+
+        @Override
+        public void run() {
+            try {
+                Lock escuderiaLock = escuderiaLocks.get(escuderia);
+                escuderiaLock.lock();
+
+                pista.acquire();
+
+                System.out.println(nome + " da escuderia " + escuderia + " entrou na pista.");
+
+                for (int i = 1; i <= 3; i++) {
+                    double tempoVolta = darVolta();
+                    System.out.println(nome + " completou a volta " + i + " com tempo: " + String.format("%.2f", tempoVolta) + " segundos.");
+
+                    if (tempoVolta < melhorVolta) {
+                        melhorVolta = tempoVolta;
+                    }
+                }
+
+                System.out.println(nome + " terminou seu treino com melhor volta: " + String.format("%.2f", melhorVolta) + " segundos.");
+                pista.release();
+
+                adicionarAoGrid(this);
+
+                escuderiaLock.unlock();
+
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        private double darVolta() throws InterruptedException {
+            double tempoVolta = 60 + (random.nextDouble() * 20);
+            Thread.sleep(1000); 
+            return tempoVolta;
+        }
+
+        public double getMelhorVolta() {
+            return melhorVolta;
+        }
+
+        public String getNome() {
+            return nome;
+        }
+
+        public String getEscuderia() {
+            return escuderia;
+        }
+    }
+
+    private static synchronized void adicionarAoGrid(Piloto piloto) {
+        gridDeLargada.add(piloto);
+    }
+
+    public static void main(String[] args) {
+        String[] escuderias = {"Ferrari", "Mercedes", "Red Bull", "McLaren", "Renault", "AlphaTauri", "Alfa Romeo"};
+        for (String escuderia : escuderias) {
+            escuderiaLocks.put(escuderia, new ReentrantLock());
+        }
+
+        Piloto[] pilotos = {
+                new Piloto("Leclerc", "Ferrari"), new Piloto("Sainz", "Ferrari"),
+                new Piloto("Hamilton", "Mercedes"), new Piloto("Russell", "Mercedes"),
+                new Piloto("Verstappen", "Red Bull"), new Piloto("Pérez", "Red Bull"),
+                new Piloto("Norris", "McLaren"), new Piloto("Ricciardo", "McLaren"),
+                new Piloto("Ocon", "Renault"), new Piloto("Alonso", "Renault"),
+                new Piloto("Tsunoda", "AlphaTauri"), new Piloto("Gasly", "AlphaTauri"),
+                new Piloto("Zhou", "Alfa Romeo"), new Piloto("Bottas", "Alfa Romeo")
+        };
+
+        for (Piloto piloto : pilotos) {
+            piloto.start();
+        }
+
+        for (Piloto piloto : pilotos) {
+            try {
+                piloto.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        gridDeLargada.sort(Comparator.comparingDouble(Piloto::getMelhorVolta));
+        System.out.println("\n=== Grid de Largada ===");
+        for (int i = 0; i < gridDeLargada.size(); i++) {
+            Piloto piloto = gridDeLargada.get(i);
+            System.out.println((i + 1) + ". " + piloto.getNome() + " (" + piloto.getEscuderia() + ") - Melhor volta: " + String.format("%.2f", piloto.getMelhorVolta()) + " segundos.");
+        }
+    }
+}
